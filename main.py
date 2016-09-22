@@ -16,7 +16,7 @@ ops = Options()
 
 # We first try to parse optional configuration files:
 fparser = argparse.ArgumentParser(add_help=False)
-fparser.add_argument('-f', '--file', default="conf2.txt", dest='-f', metavar='<file>')
+fparser.add_argument('-f', '--file', default="conf.txt", dest='-f', metavar='<file>')
 farg = fparser.parse_known_args()
 conffile = vars(farg[0])['-f']
 

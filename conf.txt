@@ -1,0 +1,105 @@
+###################################################
+# Config file: system parameters and architecture #
+###################################################
+# General options, default values (can be overridden by command line options)
+#̣ ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+# Perturbation options
+Perturbation:
+  -m --mode: 
+    description: "Spatial mode of the perturbation."
+    default:     1
+    name:        "<mode>"
+    choices:     ~
+  -a --amplitude:
+    description: "Amplitude of the perturbation."
+    default:     1.0
+    name:        "<amplitude>"
+    choices:     ~
+  -pt --pulseDt:
+    description: "Duration of the pulse (a.u.)"
+    default:     0.5
+    name:        "<pdt>"
+    choices:     ~
+  -A --attack:
+    description: "Pulse attack function."
+    default:     'exponential'
+    name:        "<attack>"
+    choices:     ['exponential', 'instantaneous']
+  -R --release:
+    description: "Pulse release function."
+    default:     'exponential'
+    name:        "<release>"
+    choices:     ['exponential', 'instantaneous']
+QIF:
+  -e --eta:
+    description: "External current."
+    default:     5.0
+    name:        "<eta>"
+    choices:     ~
+  -t --tau:
+    description: "Time constant (to be applied after computations are done, faketau) (s)."
+    default:     20.0E-3
+    name:        "<tau>"
+    choices:     ~
+Network:
+  -c --connectivity:
+    description: "Type of connectivity to be used ('mex-hat', 'fs' fourier series, etc.)"
+    default:     1.0
+    name:        "<cnt>"
+    choices:     ['fs', 'mex-hat']
+  -M --modes:
+    description: "Modes of connectivity (list)."
+    default:     [0, 10, 7.5, -2.5]
+    name:        "<cmodes>"
+    choices:     ~
+  -N --popsize:
+    description: "Number of neurons for the qif system."
+    default:     500000
+    name:        "<N>"
+    choices:     ~
+  -n --popnum:
+    description: "Number of populations ('l' in the program)."
+    default:     100
+    name:        "<n>"
+    choices:     ~
+  -D --distribution:
+    description: "Distribution of external currents for the qif system ('lorentz', 'gauss', 'noise': non-distributed but under GWN)"
+    default:     'lorentz'
+    name:        "<distribution>"
+    choices:     ['lorentz', 'gauss', 'noise']
+  -d --delta:
+    description: "Width of the external current distibution."
+    default:     1.0
+    name:        "<delta>"
+    choices:     ~
+Simulation:
+  -f --file: 
+    description: "Configuration file."
+    default:     "./conf.txt"
+    name:        "<conf file>"
+    choices:     ~
+  -ic --initconds:
+    description: "Override initial conditions generator."
+    default:     False
+    name:        "<initconds>"
+    choices:     [False, True]
+  -s --system:
+    description: "Systems to be simulated."
+    default:     'both'
+    name:        "<system>"
+    choices:     ['qif', 'fr', 'both']
+  -T --ttime:
+    description: "Total time of simulation (in dt time, a.u.)."
+    default:     20.0
+    name:        "<time>"
+    choices:     ~
+  -dt --timestep:
+    description: "Time step (a.u.)."
+    default:     1E-3
+    name:        "<dt>"
+    choices:     ~
+  -t0 --inittime:
+    description: "Initial time (a.u.)."
+    default:     0.0
+    name:        "<t0>"
+    choices:     ~

@@ -4,7 +4,7 @@ import os
 import numba
 import numpy as np
 
-from nflib import Data, Connectivity
+from frlib import Data, Connectivity
 
 __author__ = 'Jose M. Esnaola Acebes'
 
@@ -20,7 +20,7 @@ __author__ = 'Jose M. Esnaola Acebes'
 
 # Function that performs the integration (prepared for numba)
 @numba.autojit
-def qifint(v_exit_s1, v, exit0, eta_0, s_0, tiempo, number, dn, dt, tau, vpeak, refr_tau, tau_peak):
+def qifint(v_exit_s1, v, exit0, eta_0, s_0, tiempo, number, dt, tau, vpeak, refr_tau, tau_peak):
     """ This function checks (for each neuron) whether the neuron is in the
     refractory period, and computes the integration in case is NOT. If it is,
     then it adds a time step until the refractory period finishes.
@@ -37,7 +37,7 @@ def qifint(v_exit_s1, v, exit0, eta_0, s_0, tiempo, number, dn, dt, tau, vpeak, 
     for n in xrange(number):
         d[n, 2] = 0
         if t >= exit0[n]:
-            d[n, 0] = v[n] + (dt / tau) * (v[n] * v[n] + eta_0[n] + tau * s_0[int(n / dn)])  # Euler integration
+            d[n, 0] = v[n] + (dt / tau) * (v[n] * v[n] + eta_0[n] + tau * s_0[n])  # Euler integration
             if d[n, 0] >= vpeak:
                 d[n, 1] = t + refr_tau - (tau_peak - 1.0 / d[n, 0])
                 d[n, 2] = 1
@@ -46,14 +46,14 @@ def qifint(v_exit_s1, v, exit0, eta_0, s_0, tiempo, number, dn, dt, tau, vpeak, 
 
 
 @numba.autojit
-def qifint_noise(v_exit_s1, v, exit0, eta_0, s_0, nois, tiempo, number, dn, dt, tau, vpeak, refr_tau, tau_peak):
+def qifint_noise(v_exit_s1, v, exit0, eta_0, s_0, nois, tiempo, number, dt, tau, vpeak, refr_tau, tau_peak):
     d = 1 * v_exit_s1
     # These steps are necessary in order to use Numba (don't ask why ...)
     t = tiempo * 1.0
     for n in xrange(number):
         d[n, 2] = 0
         if t >= exit0[n]:
-            d[n, 0] = v[n] + (dt / tau) * (v[n] * v[n] + eta_0 + tau * s_0[int(n / dn)]) + nois[n]  # Euler integration
+            d[n, 0] = v[n] + (dt / tau) * (v[n] * v[n] + eta_0 + tau * s_0[n]) + nois[n]  # Euler integration
             if d[n, 0] >= vpeak:
                 d[n, 1] = t + refr_tau - (tau_peak - 1.0 / d[n, 0])
                 d[n, 2] = 1
@@ -91,13 +91,10 @@ class Perturbation:
         else:
             self.d = data
 
-        if modes is None:  # Default mode perturbation is first mode
-            modes = [1]
-
         # Input at t0
-        self.input = np.ones(self.d.l) * 0.0
+        self.input = 0.0
         # Input time series
-        self.it = np.zeros((self.d.nsteps, self.d.l))
+        self.it = np.zeros(self.d.nsteps)
         # Input ON/OFF
         self.pbool = False
 
@@ -119,21 +116,6 @@ class Perturbation:
         # Amplitude parameters
         self.ptype = ptype
         self.amp = amplitude
-        # Spatial modulation (wavelengths)
-        self.phi = np.linspace(-np.pi, np.pi, self.d.l)
-        self.smod = self.sptprofile(modes, self.amp)
-
-    def sptprofile(self, modes, amp=1E-2):
-        """ Gives the spatial profile of the perturbation: different wavelength and combinations
-            of them can be produced.
-        """
-        sprofile = 0.0
-        if np.isscalar(modes):
-            print "Warning! 'modes' should be an iterable."
-            modes = [modes]
-        for m in modes:
-            sprofile += amp * np.cos(m * self.phi)
-        return sprofile
 
     def timeevo(self, temps):
         """ Time evolution of the perturbation """
@@ -143,7 +125,7 @@ class Perturbation:
             if temps >= self.tf:
                 if self.release == 'exponential' and self.tdmod > self.mintd:
                     self.tdmod -= (self.d.dt / self.taud) * self.tdmod
-                    self.input = self.tdmod * self.smod
+                    self.input = self.tdmod * self.amp
                 elif self.release == 'instantaneous':
                     self.input = 0.0
                     self.pbool = False
@@ -151,7 +133,7 @@ class Perturbation:
                 if self.attack == 'exponential' and self.trmod < 1.0:
                     self.trmod += (self.d.dt / self.taur) * self.trmod
                     self.tdmod = self.trmod
-                    self.input = (self.trmod - self.trmod0) * self.smod
+                    self.input = (self.trmod - self.trmod0) * self.amp
                 elif self.attack == 'instantaneous':
                     if temps == self.t0:
                         self.input = self.amp
@@ -182,11 +164,10 @@ class SaveResults:
             self.path = "./results"
         else:  # Create the path
             os.path.os.mkdir("./%s" % path)
-        # Define file paths depending on the system (nf, qif, both)
-        self.fn = SaveResults.FileName(self.d, system)
+
         self.results = dict(parameters=dict(), connectivity=dict)
         # Parameters are store copying the configuration dictionary and other useful parameters (from the beginning)
-        self.results['parameters'] = {'l': self.d.l, 'eta0': self.d.eta0, 'delta': self.d.delta, 'j0': self.d.j0,
+        self.results['parameters'] = {'eta0': self.d.eta0, 'delta': self.d.delta, 'j0': self.d.j0,
                                       'tau': self.d.faketau, 'opts': parameters}
         self.results['connectivity'] = {'type': cnt.profile, 'cnt': cnt.cnt, 'modes': cnt.modes, 'freqs': cnt.freqs}
         self.results['perturbation'] = {'t0': pert.t0}
@@ -203,35 +184,11 @@ class SaveResults:
             self.results['nf'] = dict(fr=dict(), v=dict())
 
     def create_dict(self, **kwargs):
-        tol = self.d.total_time * (1.0 / 100.0)
-
         for system in self.d.systems:
             self.results[system]['t'] = self.d.t[system]
             self.results[system]['fr'] = dict(ring=self.d.r[system])
             self.results[system]['v'] = dict(ring=self.d.v[system])
             self.results[system]['fr']['distribution'] = self.d.dr[system]
-            t = []
-            if 'phi0' in kwargs:
-                self.results[system]['fr']['ts'] = {'p%s' % str(phi0): self.d.r[system][:, phi0] for phi0 in
-                                                    list(dict(kwargs)['phi0'])}
-                self.results[system]['v']['ts'] = {'p%s' % str(phi0): self.d.v[system][:, phi0] for phi0 in
-                                                   list(dict(kwargs)['phi0'])}
-            if 't0' in kwargs:
-                for t0 in list(dict(kwargs)['t0']):
-                    t0p, t0pid = find_nearest(self.d.t[system], t0, ret='both')
-                    if np.abs(t0p - t0) > tol:
-                        # Emergency save
-                        print "ERROR: time %lf not in data array." % t0
-                        print "Closest time was %lf. Difference is %lf and tolerance %lf." % (
-                            t0p, np.abs(t0p - t0), tol)
-                        self.save()
-                        exit(-1)
-                    else:
-                        t.append(t0pid)
-
-                self.results[system]['fr']['profiles'] = {'t%s' % str(ti): self.d.r[system][ti] for ti in t}
-                self.results[system]['v']['profiles'] = {'t%s' % str(ti): self.d.v[system][ti] for ti in t}
-                del t
 
     def save(self):
         """ Saves all relevant data into a numpy object with date as file-name."""
@@ -250,67 +207,6 @@ class SaveResults:
 
     def profiles(self):
         pass
-
-    class FileName:
-        """ This class just creates strings to be easily used and understood
-            (May be is too much...)
-        """
-
-        def __init__(self, data, system):
-            self.d = data
-            if system == 'qif' or system == 'both':
-                self.qif = self.Variables(data, 'qif')
-            if system == 'nf' or system == 'both':
-                self.nf = self.Variables(data, 'nf')
-
-        @staticmethod
-        def tpoints(d, system):
-            return "%s_time-colorplot_%.2lf-%.2lf-%.2lf-%d" % (system, d.j0, d.eta0, d.delta, d.l)
-
-        class Variables:
-            def __init__(self, data, t):
-                self.fr = SaveResults.FileName.FiringRate(data, t)
-                self.v = SaveResults.FileName.MeanPotential(data, t)
-                self.t = SaveResults.FileName.tpoints(data, t)
-
-        class FiringRate:
-            def __init__(self, data, system):
-                self.d = data
-                self.t = system
-                self.colorplot()
-
-            def colorplot(self):
-                # Color plot (j0, eta0, delta, l)
-                self.cp = "%s_fr-colorplot_%.2lf-%.2lf-%.2lf-%d" % (
-                    self.t, self.d.j0, self.d.eta0, self.d.delta, self.d.l)
-
-            def singlets(self, pop):
-                # Single populations
-                self.sp = "%s_fr-singlets-%d_%.2lf-%.2lf-%.2lf-%d" % (
-                    self.t, pop, self.d.j0, self.d.eta0, self.d.delta, self.d.l)
-
-            def profile(self, t0):
-                # Profile at a given t0
-                self.pr = "%s_fr-profile-%.2lf_%.2lf-%.2lf-%.2lf-%d" % (
-                    self.t, t0, self.d.j0, self.d.eta0, self.d.delta, self.d.l)
-
-        class MeanPotential:
-            def __init__(self, data, system):
-                self.d = data
-                self.t = system
-                self.colorplot()
-
-            def colorplot(self):
-                # Color plot (j0, eta0, delta, l)
-                self.cp = "v-colorplot_%.2lf-%.2lf-%.2lf-%d" % (self.d.j0, self.d.eta0, self.d.delta, self.d.l)
-
-            def singlets(self, pop):
-                # Single populations
-                self.sp = "v-singlets-%d_%.2lf-%.2lf-%.2lf-%d" % (pop, self.d.j0, self.d.eta0, self.d.delta, self.d.l)
-
-            def profile(self, t0):
-                # Profile at a given t0
-                self.pr = "v-profile-%.2lf_%.2lf-%.2lf-%.2lf-%d" % (t0, self.d.j0, self.d.eta0, self.d.delta, self.d.l)
 
 
 class TheoreticalComputations:
@@ -331,8 +227,9 @@ class TheoreticalComputations:
         # Theoretical distribution of firing rates
         self.thdist = dict()
 
-    def theor_distrb(self, s, points=10E3, rmax=3.0):
+    def theor_distrb(self, s, l, points=10E3, rmax=3.0):
         """ Computes theoretical distribution of firing rates
+        :param l: number of populations (intended for the RING model)
         :param s: Mean field (J*r) rescaled (tau = 1)
         :param points: number of points for the plot
         :param rmax: maximum firing rate of the distribution
@@ -340,8 +237,8 @@ class TheoreticalComputations:
         """
         rpoints = int(points)
         rmax = rmax / self.d.faketau
-        r = np.dot(np.linspace(0, rmax, rpoints).reshape(rpoints, 1), np.ones((1, self.d.l)))
-        s = np.dot(np.ones((rpoints, 1)), s.reshape(1, self.d.l))
+        r = np.dot(np.linspace(0, rmax, rpoints).reshape(rpoints, 1), np.ones((1, l)))
+        s = np.dot(np.ones((rpoints, 1)), s.reshape(1, l))
         geta = self.d.delta / ((self.d.eta0 - (np.pi ** 2 * self.d.faketau ** 2 * r ** 2 - s)) ** 2 + self.d.delta ** 2)
         rhor = 2.0 * np.pi * self.d.faketau ** 2 * geta.mean(axis=1) * r.T[0]
         # plt.plot(x.T[0], hr, 'r')

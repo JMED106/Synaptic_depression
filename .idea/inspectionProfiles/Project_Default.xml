@@ -1,0 +1,36 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <option name="myLocal" value="true" />
+    <inspection_tool class="PyPep8Inspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredErrors">
+        <list>
+          <option value="E221" />
+          <option value="E226" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="numpy.tan" />
+          <option value="numpy.pi" />
+          <option value="numpy.random.randn" />
+          <option value="numpy.ceil" />
+          <option value="numpy.sqrt" />
+          <option value="numpy.abs" />
+          <option value="numpy.cos" />
+          <option value="numpy.exp" />
+          <option value="int.*" />
+          <option value="tuple.reshape" />
+          <option value="float.mean" />
+          <option value="float.__getitem__" />
+          <option value="numpy.greater" />
+          <option value="qifsteady" />
+          <option value="amp" />
+          <option value="numpy.log" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

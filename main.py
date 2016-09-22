@@ -1,53 +1,48 @@
-import getopt
-import sys
-
+import argparse
 import yaml
+import sys
 
 __author__ = 'jm'
 
+# Empty class to manage external parameters
+class Options:
+    pass
 
-def main(argv, options):
-    try:
-        optis, args = getopt.getopt(argv, "hm:a:s:c:N:n:e:d:t:D:f:",
-                                    ["mode=", "amp=", "system=", "connec=", "neurons=", "lenght=", "extcurr=",
-                                     "delta=", "tfinal=", "Distr=", "file="])
-    except getopt.GetoptError:
-        print 'main.py [-m <mode> -a <amplitude> -s <system> -c <connectivity> ' \
-              '-N <number-of-neurons> -n <lenght-of-ring-e <external-current> ' \
-              '-d <widt-of-dist> -t <final-t> -D <type-of-distr> -f <config-file>]'
-        sys.exit(2)
+options = None
+ops = Options()
 
-    for opt, arg in optis:
-        if len(opt) > 2:
-            opt = opt[1:3]
-        opt = opt[1]
-        # Check type and cast
-        if isinstance(options[opt], int):
-            options[opt] = int(float(arg))
-        elif isinstance(options[opt], float):
-            options[opt] = float(arg)
-        else:
-            options[opt] = arg
+# We first try to parse optional configuration files:
+fparser = argparse.ArgumentParser(add_help=False)
+fparser.add_argument('-f', '--file', default="conf2.txt", dest='-f', metavar='<file>')
+farg = fparser.parse_known_args()
+conffile = vars(farg[0])['-f']
 
-    return options
+# We open the configuration file to load parameters (not optional)
+try:
+    options = yaml.load(file(conffile, 'r'))
+except IOError:
+    print "The configuration file '%s' is missing" % conffile
+    exit(-1)
+except yaml.YAMLError, exc:
+    print "Error in configuration file:", exc
+    exit(-1)
 
+gopts = options[0]
 
-opts = {"m": 0, "a": 1.0, "s": 'both', "c": 'mex-hat',
-        "N": int(2E5), "n": 100, "e": 4.0, "d": 0.5, "t": 20,
-        "D": 'lorentz', "f": "conf.txt"}
+# We load parameters from the dictionary of the conf file and add command line options (2nd parsing)
+parser = argparse.ArgumentParser(
+    description='Simulator of an all-to-all network of QIF neurons with synaptic depression dynamics.',
+    usage='python %s [-O <options>]' % sys.argv[0])
+
+for key in gopts.keys():
+    flags = key.split()
+    parser.add_argument(*flags, default=gopts[key]['default'], help=gopts[key]['description'], dest=flags[0][1:],
+                        metavar=gopts[key]['name'], type=type(gopts[key]['default']),
+                        choices=gopts[key]['choices'])
+
+# We parse command line arguments:
+args = parser.parse_args(farg[1], namespace=ops)
+
 extopts = {"dt": 1E-3, "t0": 0.0, "ftau": 20.0E-3, "modes": [10, 7.5, -2.5]}
 pertopts = {"dt": 0.5, "attack": 'exponential', "release": 'instantaneous'}
 
-if __name__ == '__main__':
-    opts2 = main(sys.argv[1:], opts)
-else:
-    opts2 = opts
-try:
-    (opts, extopts, pertopts) = yaml.load(file(opts2['f']))
-    if __name__ == '__main__':
-        opts = main(sys.argv[1:], opts)
-except IOError:
-    print "The configuration file %s is missing, using inbuilt configuration." % (opts2['f'])
-except ValueError:
-    print "Configuration file has bad format."
-    exit(-1)

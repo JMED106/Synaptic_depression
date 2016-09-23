@@ -187,7 +187,7 @@ class SaveResults:
         for system in self.d.systems:
             self.results[system]['t'] = self.d.t[system]
             self.results[system]['fr'] = dict(ring=self.d.r[system])
-            self.results[system]['v'] = dict(ring=self.d.v[system])
+            self.results[system]['vstored'] = dict(ring=self.d.v[system])
             self.results[system]['fr']['distribution'] = self.d.dr[system]
 
     def save(self):
@@ -230,10 +230,10 @@ class TheoreticalComputations:
     def theor_distrb(self, s, l, points=10E3, rmax=3.0):
         """ Computes theoretical distribution of firing rates
         :param l: number of populations (intended for the RING model)
-        :param s: Mean field (J*r) rescaled (tau = 1)
+        :param s: Mean field (J*rstored) rescaled (tau = 1)
         :param points: number of points for the plot
         :param rmax: maximum firing rate of the distribution
-        :return: rho(r) vs r (output -> r, rho(r))
+        :return: rho(rstored) vs rstored (output -> rstored, rho(rstored))
         """
         rpoints = int(points)
         rmax = rmax / self.d.faketau
@@ -241,7 +241,7 @@ class TheoreticalComputations:
         s = np.dot(np.ones((rpoints, 1)), s.reshape(1, l))
         geta = self.d.delta / ((self.d.eta0 - (np.pi ** 2 * self.d.faketau ** 2 * r ** 2 - s)) ** 2 + self.d.delta ** 2)
         rhor = 2.0 * np.pi * self.d.faketau ** 2 * geta.mean(axis=1) * r.T[0]
-        # plt.plot(x.T[0], hr, 'r')
+        # plt.plot(x.T[0], hr, 'rstored')
         return dict(x=r.T[0], y=rhor)
 
 

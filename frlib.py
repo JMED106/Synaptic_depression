@@ -35,7 +35,7 @@ class Data:
     """
 
     def __init__(self, n=1E5, eta0=0, delta=1.0, t0=0.0, tfinal=50.0,
-                 dt=1E-3, delay=0.0, tau=1.0, faketau=20.0E-3, fp='lorentz', system='fr'):
+                 dt=1E-3, delay=0.0, tau=1.0, taud=100, u=0.05, faketau=20.0E-3, fp='lorentz', system='fr'):
 
         # 0.1) Network properties:
         # Zeroth mode, determines firing rate of the homogeneous state
@@ -57,16 +57,18 @@ class Data:
         self.tpoints = np.arange(t0, tfinal, dt)  # Points for the plots and others
         self.nsteps = len(self.tpoints)  # Total time steps
         self.tau = tau
+        self.taud = taud
+        self.u = u
         self.faketau = faketau  # time scale in ms
 
         # 0.7) FIRING RATE EQUATIONS
-        self.rphi = np.ones(self.nsteps)
-        self.vphi = np.ones(self.nsteps) * (-0.01)
-        self.sphi = np.ones(self.nsteps)
-        self.rphi[len(self.rphi) - 1] = 0.0
+        self.r = np.ones(self.nsteps)
+        self.v = np.ones(self.nsteps) * (-0.01)
+        self.d = np.ones(self.nsteps)
+        self.r[len(self.r) - 1] = 0.0
         # Load INITIAL CONDITIONS
         self.r0 = Connectivity.rtheory(self.j0, self.eta0, self.delta)
-        self.sphi[len(self.sphi) - 1] = 0.0
+        self.d[len(self.d) - 1] = 0.0
 
         self.system = system
         self.systems = []
@@ -134,6 +136,13 @@ class Data:
             self.matrix = np.ones(shape=(self.N, 3)) * 0
             self.spikes = np.ones(shape=(self.N, self.T_syn)) * 0  # Spike matrix (N x T_syn)
 
+            # Synaptic variable d
+            self.dqif = np.ones(self.nsteps)
+            if system != 'qif':
+                self.dqif[len(self.dqif) - 1] = self.d[len(self.d) - 1]
+            else:
+                self.dqif[len(self.dqif) - 1] = 0.0
+
             # Single neuron recording (not implemented)
             self.singlev = np.ones(self.nsteps) * 0.0
             self.freqpoints = 25
@@ -162,8 +171,8 @@ class Data:
         self.END = False
 
         # Post simulation:
-        self.r = {x: None for x in self.systems}
-        self.v = {x: None for x in self.systems}
+        self.rstored = {x: None for x in self.systems}
+        self.vstored = {x: None for x in self.systems}
         self.t = {x: None for x in self.systems}
         self.k = {x: None for x in self.systems}
         self.dr = {x: None for x in self.systems}
@@ -177,8 +186,8 @@ class Data:
 
         if system == 'nf' or system == 'both':
             self.fileprm = '%.2lf-%.2lf-%.2lf' % (j0, self.eta0, self.delta)
-            self.rphi[(self.nsteps - 1) % self.nsteps] = self.r0
-            self.vphi[(self.nsteps - 1) % self.nsteps] = -self.delta / (2.0 * self.r0 * np.pi)
+            self.r[(self.nsteps - 1) % self.nsteps] = self.r0
+            self.v[(self.nsteps - 1) % self.nsteps] = -self.delta / (2.0 * self.r0 * np.pi)
 
         if system == 'qif' or system == 'both':
             print "Loading initial conditions ... "
@@ -269,15 +278,15 @@ class Data:
             :param th: TheoreticalComputations() in tools
         """
         if self.system == 'qif' or self.system == 'both':
-            self.r['qif'] = np.array(fr.r)
-            self.v['qif'] = np.array(fr.v)
+            self.rstored['qif'] = np.array(fr.r)
+            self.vstored['qif'] = np.array(fr.v)
             self.t['qif'] = fr.tempsfr
             self.k['qif'] = None
             self.dr['qif'] = dict(all=fr.frqif0, inst=fr.rqif)
 
         if self.system == 'nf' or self.system == 'both':
-            self.r['nf'] = self.rphi
-            self.v['nf'] = self.vphi
+            self.rstored['nf'] = self.r
+            self.vstored['nf'] = self.v
             self.t['nf'] = self.tpoints
             self.k['nf'] = None
             self.dr['nf'] = th.thdist

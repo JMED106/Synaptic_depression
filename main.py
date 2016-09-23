@@ -1,6 +1,12 @@
 import argparse
 import yaml
 import sys
+from timeit import default_timer as timer
+import progressbar as pb
+
+import numpy as np
+from frlib import Data, FiringRate
+from tools import qifint, qifint_noise, TheoreticalComputations, SaveResults, Perturbation, noise
 
 __author__ = 'jm'
 
@@ -13,6 +19,8 @@ class Options:
 
 options = None
 ops = Options()
+pi = np.pi
+pi2 = np.pi * np.pi
 
 # We first try to parse optional configuration files:
 fparser = argparse.ArgumentParser(add_help=False)
@@ -22,7 +30,7 @@ conffile = vars(farg[0])['-f']
 
 # We open the configuration file to load parameters (not optional)
 try:
-    options = yaml.load(file(conffile, 'r'))
+    options = yaml.load(file(conffile, 'rstored'))
 except IOError:
     print "The configuration file '%s' is missing" % conffile
     exit(-1)
@@ -41,11 +49,129 @@ for group in options:
         flags = key.split()
         opts = options[group]
         gr.add_argument(*flags, default=opts[key]['default'], help=opts[key]['description'], dest=flags[0][1:],
-                            metavar=opts[key]['name'], type=type(opts[key]['default']),
-                            choices=opts[key]['choices'])
+                        metavar=opts[key]['name'], type=type(opts[key]['default']),
+                        choices=opts[key]['choices'])
 
 # We parse command line arguments:
+opts = parser.parse_args(farg[1])
 args = parser.parse_args(farg[1], namespace=ops)
 
-extopts = {"dt": 1E-3, "t0": 0.0, "ftau": 20.0E-3, "modes": [10, 7.5, -2.5]}
-pertopts = {"dt": 0.5, "attack": 'exponential', "release": 'instantaneous'}
+###################################################################################
+# 0) PREPARE FOR CALCULATIONS
+# 0.1) Load data object:
+d = Data(n=args.N, eta0=args.e, delta=args.d, tfinal=args.T, dt=args.dt, faketau=args.t, taud=args.td, u=args.U,
+         fp=args.D, system=args.s)
+
+# 0.2) Load initial conditions
+d.load_ic(args.j, system=d.system)
+# Override initial conditions generator:
+if args.a != 0.0:
+    args.ic = False
+else:
+    args.ic = True
+if args.ic:
+    print "Overriding initial conditions."
+    d.new_ic = True
+
+# 0.3) Load Firing rate class in case qif network is simulated
+if d.system != 'nf':
+    fr = FiringRate(data=d, swindow=0.5, sampling=0.05)
+
+# 0.4) Set perturbation configuration
+p = Perturbation(data=d, dt=args.pt, amplitude=args.a, attack=args.A)
+
+# 0.5) Define saving paths:
+sr = SaveResults(data=d, pert=p, system=d.system, parameters=opts)
+
+# 0.6) Other theoretical tools:
+# th = TheoreticalComputations(d, c, p)
+
+# Progress-bar configuration
+widgets = ['Progress: ', pb.Percentage(), ' ',
+           pb.Bar(marker=pb.RotatingMarker()), ' ', pb.ETA(), ' ']
+
+###################################################################################
+# 1) Simulation (Integrate the system)
+print('Simulating ...')
+pbar = pb.ProgressBar(widgets=widgets, maxval=10 * (d.nsteps + 1)).start()
+time1 = timer()
+tstep = 0
+temps = 0
+
+# Time loop
+while temps < d.tfinal:
+    # Time step variables
+    kp = tstep % d.nsteps
+    k = (tstep + d.nsteps - 1) % d.nsteps
+    # ######################## - PERTURBATION  - ##
+    if p.pbool and not d.new_ic:
+        if temps >= p.t0:
+            p.timeevo(temps)
+    p.it[kp] = p.input
+
+    # ######################## -  INTEGRATION  - ##
+    # ######################## -      qif      - ##
+    if d.system == 'qif' or d.system == 'both':
+        tsyp = tstep % d.T_syn
+        tskp = tstep % d.spiketime
+        tsk = (tstep + d.spiketime - 1) % d.spiketime
+        # We compute the Mean-field vector s_j
+        # noinspection PyUnresolvedReferences
+        s = (1.0 / d.N) * np.add.reduce(np.dot(d.spikes, d.a_tau[:, tsyp]))
+        d.dqif[kp] = d.dqif[k] + d.dt * ((1.0 - d.dqif[k]) / d.taud - d.u * s * d.dqif[k])
+
+
+        if d.fp == 'noise':
+            noiseinput = np.sqrt(2.0 * d.dt / d.tau * d.delta) * noise(d.N)
+            # Excitatory
+            d.matrix = qifint_noise(d.matrix, d.matrix[:, 0], d.matrix[:, 1], d.eta0, d.j0*d.dqif*s + p.input,
+                                    noiseinput, temps, d.N,
+                                    d.dt, d.tau, d.vpeak, d.refr_tau, d.tau_peak)
+        else:
+            # Excitatory
+            d.matrix = qifint(d.matrix, d.matrix[:, 0], d.matrix[:, 1], d.eta, s + p.input, temps, d.N,
+                              d.dt, d.tau, d.vpeak, d.refr_tau, d.tau_peak)
+
+        # Prepare spike matrices for Mean-Field computation and firing rate measure
+        # Excitatory
+        d.spikes_mod[:, tsk] = 1 * d.matrix[:, 2]  # We store the spikes
+        d.spikes[:, tsyp] = 1 * d.spikes_mod[:, tskp]
+
+        # If we are just obtaining the initial conditions (a steady state) we don't need to
+        # compute the firing rate.
+        if not d.new_ic:
+            # Voltage measure:
+            vma = (d.matrix[:, 1] <= temps)  # Neurons which are not in the refractory period
+            fr.vavg0[vma] += d.matrix[vma, 0]
+            fr.vavg += 1
+
+            # ######################## -- FIRING RATE MEASURE -- ##
+            fr.frspikes[:, tstep % fr.wsteps] = 1 * d.spikes[:, tsyp]
+            fr.firingrate(tstep)
+            # Distribution of Firing Rates
+            if tstep > 0:
+                fr.tspikes2 += d.matrix[:, 2]
+                fr.ravg2 += 1  # Counter for the "instantaneous" distribution
+                fr.ravg += 1  # Counter for the "total time average" distribution
+
+    # ######################## -  INTEGRATION  - ##
+    # ######################## --   FR EQS.   -- ##
+    if d.system == 'nf' or d.system == 'both':
+        # -- Integration -- #
+        d.r[kp] = d.r[k] + d.dt * (d.delta / pi + 2.0 * d.r[k] * d.v[k])
+        d.v[kp] = d.v[k] + d.dt * (d.v[k]*d.v[k] + d.eta0 - pi2*d.r[k]*d.r[k] + d.j0*d.r[k]*d.d[kp] + p.input)
+        d.d[kp] = d.d[k] + d.dt * ((1.0 - d.d[k]) / d.taud - d.u * d.r[k] * d.d[k])
+
+    # Perturbation at certain time
+    if int(p.t0 / d.dt) == tstep:
+        p.pbool = True
+
+    # Time evolution
+    pbar.update(10 * tstep + 1)
+    temps += d.dt
+    tstep += 1
+
+# Finish pbar
+pbar.finish()
+# Stop the timer
+print 'Total time: {}.'.format(timer() - time1)

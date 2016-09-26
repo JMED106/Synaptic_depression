@@ -37,7 +37,7 @@ def qifint(v_exit_s1, v, exit0, eta_0, s_0, tiempo, number, dt, tau, vpeak, refr
     for n in xrange(number):
         d[n, 2] = 0
         if t >= exit0[n]:
-            d[n, 0] = v[n] + (dt / tau) * (v[n] * v[n] + eta_0[n] + tau * s_0[n])  # Euler integration
+            d[n, 0] = v[n] + (dt / tau) * (v[n] * v[n] + eta_0[n] + tau * s_0)  # Euler integration
             if d[n, 0] >= vpeak:
                 d[n, 1] = t + refr_tau - (tau_peak - 1.0 / d[n, 0])
                 d[n, 2] = 1
@@ -53,7 +53,7 @@ def qifint_noise(v_exit_s1, v, exit0, eta_0, s_0, nois, tiempo, number, dt, tau,
     for n in xrange(number):
         d[n, 2] = 0
         if t >= exit0[n]:
-            d[n, 0] = v[n] + (dt / tau) * (v[n] * v[n] + eta_0 + tau * s_0[n]) + nois[n]  # Euler integration
+            d[n, 0] = v[n] + (dt / tau) * (v[n] * v[n] + eta_0 + tau * s_0) + nois[n]  # Euler integration
             if d[n, 0] >= vpeak:
                 d[n, 1] = t + refr_tau - (tau_peak - 1.0 / d[n, 0])
                 d[n, 2] = 1

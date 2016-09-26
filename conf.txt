@@ -12,7 +12,7 @@ Perturbation:
     choices:     ~
   -a --amplitude:
     description: "Amplitude of the perturbation."
-    default:     10.0
+    default:     0.0
     name:        "<amplitude>"
     choices:     ~
   -pt --pulseDt:

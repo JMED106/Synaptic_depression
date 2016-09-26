@@ -65,14 +65,6 @@ d = Data(n=args.N, eta0=args.e, delta=args.d, tfinal=args.T, dt=float(args.dt), 
 
 # 0.2) Load initial conditions
 d.load_ic(args.j, system=d.system)
-# Override initial conditions generator:
-if args.a != 0.0:
-    args.ic = False
-elif args.s != 'fr':
-    args.ic = True
-if args.ic:
-    print "Overriding initial conditions."
-    d.new_ic = True
 
 # 0.3) Load Firing rate class in case qif network is simulated
 if d.system != 'fr':
@@ -124,12 +116,12 @@ while temps < d.tfinal:
         if d.fp == 'noise':
             noiseinput = np.sqrt(2.0 * d.dt / d.tau * d.delta) * noise(d.N)
             # Excitatory
-            d.matrix = qifint_noise(d.matrix, d.matrix[:, 0], d.matrix[:, 1], d.eta0, d.j0 * d.dqif[k] * s + p.input,
+            d.matrix = qifint_noise(d.matrix, d.matrix[:, 0], d.matrix[:, 1], d.eta0, d.j0 * d.dqif[kp] * s + p.input,
                                     noiseinput, temps, d.N,
                                     d.dt, d.tau, d.vpeak, d.refr_tau, d.tau_peak)
         else:
             # Excitatory
-            d.matrix = qifint(d.matrix, d.matrix[:, 0], d.matrix[:, 1], d.eta, d.j0 * d.dqif[k] * s + p.input, temps, d.N,
+            d.matrix = qifint(d.matrix, d.matrix[:, 0], d.matrix[:, 1], d.eta, d.j0 * d.dqif[kp] * s + p.input, temps, d.N,
                               d.dt, d.tau, d.vpeak, d.refr_tau, d.tau_peak)
 
         # Prepare spike matrices for Mean-Field computation and firing rate measure

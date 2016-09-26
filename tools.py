@@ -177,7 +177,8 @@ class SaveResults:
         for system in self.d.systems:
             self.results[system]['t'] = np.array(self.d.t[system])*self.d.faketau
             self.results[system]['fr'] = dict(ts=np.array(self.d.rstored[system])/self.d.faketau)
-            self.results[system]['vstored'] = dict(ts=np.array(self.d.vstored[system])/self.d.faketau)
+            self.results[system]['v'] = dict(ts=np.array(self.d.vstored[system])/self.d.faketau)
+            self.results[system]['d'] = dict(ts=np.array(self.d.dstored[system])/self.d.faketau)
             self.results[system]['fr']['distribution'] = self.d.dr[system]
 
     def save(self):
@@ -229,6 +230,13 @@ class TheoreticalComputations:
         rhor = 2.0 * np.pi * self.d.faketau ** 2 * geta.mean(axis=1) * r.T[0]
         # plt.plot(x.T[0], hr, 'rstored')
         return dict(x=r.T[0], y=rhor)
+
+    @staticmethod
+    def stationay_d():
+        """ Computes the theoretical value of the synaptic depression variable under
+            specific conditions (U=0) in the stationary state"""
+        d = 1
+        return d
 
 
 class DictToObj(object):

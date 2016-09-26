@@ -80,9 +80,9 @@ Simulation:
     choices:     ~
   -ic --initconds:
     description: "Override initial conditions generator."
-    default:     False
+    default:     0
     name:        "<initconds>"
-    choices:     [False, True]
+    choices:     [0 ,1]
   -s --system:
     description: "Systems to be simulated."
     default:     'both'

@@ -227,12 +227,12 @@ class Data:
                 # for that combination: raising a warning to the user.
                 # If the database has been successfully loaded we find the closest combination
                 # Note that the number of populations must coincide
-                if load is True and np.any(database[:, -1] == self.N):
+                if load is True and np.any(database[:, -2] == self.N):
                     # mask combinations where population number match
-                    ma = (database[:, -1] == self.N)
+                    ma = (database[:, -2] == self.N)
                     # Find the closest combination by comparing with the theoretically obtained firing rate
                     idx = self.find_nearest(database[ma][:, -1], self.r0)
-                    (j02, eta, delta, n) = database[ma][idx, 1:]
+                    (j02, eta, delta, n) = database[ma][idx, 0:-1]
                     self.fileprm2 = '%s_%.2lf-%.2lf-%.2lf' % (self.fp, j02, eta, delta)
                     try:
                         self.spikes = np.load("%sic_qif_spikes_%s-%d.npy" % (self.filepath, self.fileprm2, n))
@@ -266,10 +266,13 @@ class Data:
             db = False
         if db is False:
             np.save("%sinitial_conditions_%s" % (self.filepath, self.fp),
-                    np.array([self.j0, self.eta0, self.delta, self.N]))
+                    np.array([self.j0, self.eta0, self.delta, self.N, self.r0]))
         else:
-            db.resize(np.array(np.shape(db)) + [1, 0], refcheck=False)
-            db[-1] = np.array([self.j0, self.eta0, self.delta, self.N])
+            if np.size(db) == 5:
+                db.resize((2, 5), refcheck=False)
+            else:
+                db.resize(np.array(np.shape(db)) + [1, 0], refcheck=False)
+            db[-1] = np.array([self.j0, self.eta0, self.delta, self.N, self.r0])
             np.save("%sinitial_conditions_%s" % (self.filepath, self.fp), db)
 
     def register_ts(self, fr=None, th=None):
@@ -281,7 +284,7 @@ class Data:
         if self.system == 'qif' or self.system == 'both':
             self.rstored['qif'] = np.array(fr.r)
             self.vstored['qif'] = np.array(fr.v)
-            self.dstored['qif'] = np.array(self.d.dqif)
+            self.dstored['qif'] = np.array(self.dqif)
             self.t['qif'] = fr.tempsfr
             self.k['qif'] = None
             self.dr['qif'] = dict(all=fr.frqif0, inst=fr.rqif)
@@ -289,7 +292,7 @@ class Data:
         if self.system == 'fr' or self.system == 'both':
             self.rstored['fr'] = self.r
             self.vstored['fr'] = self.v
-            self.dstored['fr'] = np.array(self.d.d)
+            self.dstored['fr'] = np.array(self.d)
             self.t['fr'] = self.tpoints
             self.k['fr'] = None
             self.dr['fr'] = th.thdist
@@ -493,8 +496,11 @@ class Connectivity:
     @staticmethod
     def rtheory(j0, eta0, delta):
         r0 = 1.0
-        func = lambda tau: (np.pi ** 2 * tau ** 4 - j0 * tau ** 3 - eta0 * tau ** 2 - delta ** 2 / (4 * np.pi ** 2))
-        sol = fsolve(func, r0)
+        sol = -1
+        while sol < 0:
+            r0 += 1.0
+            func = lambda tau: (np.pi ** 2 * tau ** 4 - j0 * tau ** 3 - eta0 * tau ** 2 - delta ** 2 / (4 * np.pi ** 2))
+            sol = fsolve(func, r0)
         return sol
 
     def linresponse(self):

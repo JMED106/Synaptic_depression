@@ -96,7 +96,7 @@ class Data:
             self.tau_syn = self.T_syn * dt  # time scale (??)
             # Weighting matrix (synaptic delay, in some sense).
             # We need T_syn vectors in order to improve the performance.
-            if self.T_syn == 10:
+            if self.T_syn <= 20:
                 # Heaviside
                 h_tau = 1.0 / self.tau_syn
                 a_tau0 = np.transpose(h_tau * np.ones(self.T_syn))

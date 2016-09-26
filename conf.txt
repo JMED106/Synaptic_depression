@@ -83,6 +83,11 @@ Simulation:
     default:     0
     name:        "<initconds>"
     choices:     [0 ,1]
+  -oic --overrideic:
+    description: "Override initial conditions generator."
+    default:     0
+    name:        "<overinitconds>"
+    choices:     [0 ,1]
   -s --system:
     description: "Systems to be simulated."
     default:     'both'

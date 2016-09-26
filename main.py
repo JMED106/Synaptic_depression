@@ -64,7 +64,11 @@ d = Data(n=args.N, eta0=args.e, delta=args.d, tfinal=args.T, dt=float(args.dt), 
          fp=args.D, system=args.s, j0=args.j)
 
 # 0.2) Load initial conditions
-d.load_ic(args.j, system=d.system)
+if args.oic is False:
+    d.load_ic(args.j, system=d.system)
+else:
+    d.fileprm = '%s_%.2lf-%.2lf-%.2lf' % (d.fp, d.j0, d.eta0, d.delta)
+
 
 if args.ic:
     print "Forcing initial conditions generation..."
@@ -77,7 +81,7 @@ if d.new_ic:
 
 # 0.3) Load Firing rate class in case qif network is simulated
 if d.system != 'fr':
-    fr = FiringRate(data=d, swindow=0.5, sampling=0.05)
+    fr = FiringRate(data=d, swindow=0.1, sampling=0.05)
 
 # 0.4) Set perturbation configuration
 p = Perturbation(data=d, dt=args.pt, amplitude=args.a, attack=args.A)

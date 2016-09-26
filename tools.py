@@ -4,7 +4,7 @@ import os
 import numba
 import numpy as np
 
-from frlib import Data, Connectivity
+from frlib import Data
 
 __author__ = 'Jose M. Esnaola Acebes'
 
@@ -84,7 +84,7 @@ def find_nearest(array, value, ret='id'):
 class Perturbation:
     """ Tool to handle perturbations: time, duration, shape (attack, decay, sustain, release (ADSR), etc. """
 
-    def __init__(self, data=None, t0=2.5, dt=0.5, ptype='pulse', modes=None,
+    def __init__(self, data=None, t0=2.5, dt=0.5, ptype='pulse',
                  amplitude=1.0, attack='exponential', release='instantaneous'):
         if data is None:
             self.d = Data()
@@ -145,7 +145,7 @@ class SaveResults:
     """ Save Firing rate data to be plotted or to be loaded with numpy.
     """
 
-    def __init__(self, data=None, cnt=None, pert=None, path='results', system='fr', parameters=None):
+    def __init__(self, data=None, pert=None, path='results', system='fr', parameters=None):
         if data is None:
             self.d = Data()
         else:
@@ -175,9 +175,9 @@ class SaveResults:
 
     def create_dict(self, **kwargs):
         for system in self.d.systems:
-            self.results[system]['t'] = self.d.t[system]
-            self.results[system]['fr'] = dict(ring=self.d.rstored[system])
-            self.results[system]['vstored'] = dict(ring=self.d.vstored[system])
+            self.results[system]['t'] = np.array(self.d.t[system])*self.d.faketau
+            self.results[system]['fr'] = dict(ts=np.array(self.d.rstored[system])/self.d.faketau)
+            self.results[system]['vstored'] = dict(ts=np.array(self.d.vstored[system])/self.d.faketau)
             self.results[system]['fr']['distribution'] = self.d.dr[system]
 
     def save(self):
@@ -200,7 +200,7 @@ class SaveResults:
 
 
 class TheoreticalComputations:
-    def __init__(self, data=None, cnt=None, pert=None):
+    def __init__(self, data=None, pert=None):
         if data is None:
             self.d = Data()
         else:

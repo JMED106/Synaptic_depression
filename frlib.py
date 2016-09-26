@@ -173,6 +173,7 @@ class Data:
         # Post simulation:
         self.rstored = {x: None for x in self.systems}
         self.vstored = {x: None for x in self.systems}
+        self.dstored = {x: None for x in self.systems}
         self.t = {x: None for x in self.systems}
         self.k = {x: None for x in self.systems}
         self.dr = {x: None for x in self.systems}
@@ -280,6 +281,7 @@ class Data:
         if self.system == 'qif' or self.system == 'both':
             self.rstored['qif'] = np.array(fr.r)
             self.vstored['qif'] = np.array(fr.v)
+            self.dstored['qif'] = np.array(self.d.dqif)
             self.t['qif'] = fr.tempsfr
             self.k['qif'] = None
             self.dr['qif'] = dict(all=fr.frqif0, inst=fr.rqif)
@@ -287,6 +289,7 @@ class Data:
         if self.system == 'fr' or self.system == 'both':
             self.rstored['fr'] = self.r
             self.vstored['fr'] = self.v
+            self.dstored['fr'] = np.array(self.d.d)
             self.t['fr'] = self.tpoints
             self.k['fr'] = None
             self.dr['fr'] = th.thdist

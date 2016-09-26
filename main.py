@@ -3,6 +3,7 @@ import yaml
 import sys
 from timeit import default_timer as timer
 import progressbar as pb
+import Gnuplot
 
 import numpy as np
 from frlib import Data, FiringRate
@@ -59,22 +60,22 @@ args = parser.parse_args(farg[1], namespace=ops)
 ###################################################################################
 # 0) PREPARE FOR CALCULATIONS
 # 0.1) Load data object:
-d = Data(n=args.N, eta0=args.e, delta=args.d, tfinal=args.T, dt=args.dt, faketau=args.t, taud=args.td, u=args.U,
-         fp=args.D, system=args.s)
+d = Data(n=args.N, eta0=args.e, delta=args.d, tfinal=args.T, dt=float(args.dt), faketau=args.tm, taud=args.td, u=args.U,
+         fp=args.D, system=args.s, j0=args.j)
 
 # 0.2) Load initial conditions
 d.load_ic(args.j, system=d.system)
 # Override initial conditions generator:
 if args.a != 0.0:
     args.ic = False
-else:
+elif args.s != 'fr':
     args.ic = True
 if args.ic:
     print "Overriding initial conditions."
     d.new_ic = True
 
 # 0.3) Load Firing rate class in case qif network is simulated
-if d.system != 'nf':
+if d.system != 'fr':
     fr = FiringRate(data=d, swindow=0.5, sampling=0.05)
 
 # 0.4) Set perturbation configuration
@@ -84,7 +85,7 @@ p = Perturbation(data=d, dt=args.pt, amplitude=args.a, attack=args.A)
 sr = SaveResults(data=d, pert=p, system=d.system, parameters=opts)
 
 # 0.6) Other theoretical tools:
-# th = TheoreticalComputations(d, c, p)
+th = TheoreticalComputations(d, p)
 
 # Progress-bar configuration
 widgets = ['Progress: ', pb.Percentage(), ' ',
@@ -120,16 +121,15 @@ while temps < d.tfinal:
         s = (1.0 / d.N) * np.add.reduce(np.dot(d.spikes, d.a_tau[:, tsyp]))
         d.dqif[kp] = d.dqif[k] + d.dt * ((1.0 - d.dqif[k]) / d.taud - d.u * s * d.dqif[k])
 
-
         if d.fp == 'noise':
             noiseinput = np.sqrt(2.0 * d.dt / d.tau * d.delta) * noise(d.N)
             # Excitatory
-            d.matrix = qifint_noise(d.matrix, d.matrix[:, 0], d.matrix[:, 1], d.eta0, d.j0*d.dqif*s + p.input,
+            d.matrix = qifint_noise(d.matrix, d.matrix[:, 0], d.matrix[:, 1], d.eta0, d.j0 * d.dqif[k] * s + p.input,
                                     noiseinput, temps, d.N,
                                     d.dt, d.tau, d.vpeak, d.refr_tau, d.tau_peak)
         else:
             # Excitatory
-            d.matrix = qifint(d.matrix, d.matrix[:, 0], d.matrix[:, 1], d.eta, s + p.input, temps, d.N,
+            d.matrix = qifint(d.matrix, d.matrix[:, 0], d.matrix[:, 1], d.eta, d.j0 * d.dqif[k] * s + p.input, temps, d.N,
                               d.dt, d.tau, d.vpeak, d.refr_tau, d.tau_peak)
 
         # Prepare spike matrices for Mean-Field computation and firing rate measure
@@ -156,12 +156,11 @@ while temps < d.tfinal:
 
     # ######################## -  INTEGRATION  - ##
     # ######################## --   FR EQS.   -- ##
-    if d.system == 'nf' or d.system == 'both':
+    if d.system == 'fr' or d.system == 'both':
         # -- Integration -- #
-        d.r[kp] = d.r[k] + d.dt * (d.delta / pi + 2.0 * d.r[k] * d.v[k])
-        d.v[kp] = d.v[k] + d.dt * (d.v[k]*d.v[k] + d.eta0 - pi2*d.r[k]*d.r[k] + d.j0*d.r[k]*d.d[kp] + p.input)
         d.d[kp] = d.d[k] + d.dt * ((1.0 - d.d[k]) / d.taud - d.u * d.r[k] * d.d[k])
-
+        d.r[kp] = d.r[k] + d.dt * (d.delta / pi + 2.0 * d.r[k] * d.v[k])
+        d.v[kp] = d.v[k] + d.dt * (d.v[k] * d.v[k] + d.eta0 - pi2 * d.r[k] * d.r[k] + d.j0 * d.r[k] * d.d[kp] + p.input)
     # Perturbation at certain time
     if int(p.t0 / d.dt) == tstep:
         p.pbool = True
@@ -175,3 +174,40 @@ while temps < d.tfinal:
 pbar.finish()
 # Stop the timer
 print 'Total time: {}.'.format(timer() - time1)
+
+# Compute distribution of firing rates of neurons
+tstep -= 1
+temps -= d.dt
+th.thdist = th.theor_distrb(d.d[tstep % d.nsteps], 1)
+
+# Save initial conditions
+if d.new_ic:
+    d.save_ic(temps)
+    exit(0)
+
+# Register data to a dictionary
+if 'qif' in d.systems:
+    # Distribution of firing rates over all time
+    fr.frqif0 = fr.tspikes / (fr.ravg * d.dt) / d.faketau
+
+    if 'fr' in d.systems:
+        d.register_ts(fr, th)
+    else:
+        d.register_ts(fr)
+else:
+    d.register_ts(th=th)
+
+# Save results
+sr.create_dict()
+sr.results['perturbation']['It'] = p.it
+sr.save()
+
+# Preliminar plotting with gnuplot
+gp = Gnuplot.Gnuplot(persist=1)
+p1 = Gnuplot.PlotItems.Data(np.c_[d.tpoints * d.faketau, d.r / d.faketau], with_='lines')
+if opts.s != 'fr':
+    p2 = Gnuplot.PlotItems.Data(np.c_[np.array(fr.tempsfr) * d.faketau, np.array(fr.r) / d.faketau],
+                                with_='lines')
+else:
+    p2 = Gnuplot.PlotItems.Data(np.c_[d.tpoints * d.faketau, d.d / d.faketau], with_='lines')
+gp.plot(p1, p2)

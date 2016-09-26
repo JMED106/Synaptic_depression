@@ -12,7 +12,7 @@ Perturbation:
     choices:     ~
   -a --amplitude:
     description: "Amplitude of the perturbation."
-    default:     1.0
+    default:     10.0
     name:        "<amplitude>"
     choices:     ~
   -pt --pulseDt:
@@ -33,34 +33,34 @@ Perturbation:
 QIF:
   -e --eta:
     description: "External current."
-    default:     5.0
+    default:     -4.0
     name:        "<eta>"
     choices:     ~
-  -t --tau:
+  -tm --taum:
     description: "Time constant (to be applied after computations are done, faketau) (s)."
-    default:     20.0E-3
-    name:        "<tau>"
+    default:     !!float 20.0E-3
+    name:        "<taum>"
+    choices:     ~
+  -td --taud:
+    description: "Synaptic time constant (a.u.)."
+    default:     100.0
+    name:        "<taud>"
+    choices:     ~
+  -U --fast:
+    description: "Synaptic fast time constant (a.u.)."
+    default:     0.05
+    name:        "<fast>"
     choices:     ~
 Network:
-  -c --connectivity:
-    description: "Type of connectivity to be used ('mex-hat', 'fs' fourier series, etc.)"
-    default:     1.0
-    name:        "<cnt>"
-    choices:     ['fs', 'mex-hat']
-  -M --modes:
-    description: "Modes of connectivity (list)."
-    default:     [0, 10, 7.5, -2.5]
-    name:        "<cmodes>"
+  -j --coupling:
+    description: "Synaptic coupling strength."
+    default:     38.0
+    name:        "<j0>"
     choices:     ~
   -N --popsize:
     description: "Number of neurons for the qif system."
     default:     500000
     name:        "<N>"
-    choices:     ~
-  -n --popnum:
-    description: "Number of populations ('l' in the program)."
-    default:     100
-    name:        "<n>"
     choices:     ~
   -D --distribution:
     description: "Distribution of external currents for the qif system ('lorentz', 'gauss', 'noise': non-distributed but under GWN)"
@@ -90,7 +90,7 @@ Simulation:
     choices:     ['qif', 'fr', 'both']
   -T --ttime:
     description: "Total time of simulation (in dt time, a.u.)."
-    default:     20.0
+    default:     200.0
     name:        "<time>"
     choices:     ~
   -dt --timestep:

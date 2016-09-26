@@ -145,15 +145,11 @@ class SaveResults:
     """ Save Firing rate data to be plotted or to be loaded with numpy.
     """
 
-    def __init__(self, data=None, cnt=None, pert=None, path='results', system='nf', parameters=None):
+    def __init__(self, data=None, cnt=None, pert=None, path='results', system='fr', parameters=None):
         if data is None:
             self.d = Data()
         else:
             self.d = data
-        if cnt is None:
-            self.cnt = Connectivity()
-        else:
-            self.cnt = cnt
         if pert is None:
             self.p = Perturbation()
         else:
@@ -169,25 +165,19 @@ class SaveResults:
         # Parameters are store copying the configuration dictionary and other useful parameters (from the beginning)
         self.results['parameters'] = {'eta0': self.d.eta0, 'delta': self.d.delta, 'j0': self.d.j0,
                                       'tau': self.d.faketau, 'opts': parameters}
-        self.results['connectivity'] = {'type': cnt.profile, 'cnt': cnt.cnt, 'modes': cnt.modes, 'freqs': cnt.freqs}
         self.results['perturbation'] = {'t0': pert.t0}
-        if cnt.profile == 'mex-hat':
-            self.results['connectivity']['je'] = cnt.je
-            self.results['connectivity']['ji'] = cnt.ji
-            self.results['connectivity']['me'] = cnt.me
-            self.results['connectivity']['mi'] = cnt.mi
 
         if system == 'qif' or system == 'both':
             self.results['qif'] = dict(fr=dict(), v=dict())
             self.results['parameters']['qif'] = {'N': self.d.N}
-        if system == 'nf' or system == 'both':
-            self.results['nf'] = dict(fr=dict(), v=dict())
+        if system == 'fr' or system == 'both':
+            self.results['fr'] = dict(fr=dict(), v=dict())
 
     def create_dict(self, **kwargs):
         for system in self.d.systems:
             self.results[system]['t'] = self.d.t[system]
-            self.results[system]['fr'] = dict(ring=self.d.r[system])
-            self.results[system]['vstored'] = dict(ring=self.d.v[system])
+            self.results[system]['fr'] = dict(ring=self.d.rstored[system])
+            self.results[system]['vstored'] = dict(ring=self.d.vstored[system])
             self.results[system]['fr']['distribution'] = self.d.dr[system]
 
     def save(self):
@@ -215,10 +205,6 @@ class TheoreticalComputations:
             self.d = Data()
         else:
             self.d = data
-        if cnt is None:
-            self.cnt = Connectivity()
-        else:
-            self.cnt = cnt
         if pert is None:
             self.p = Perturbation()
         else:

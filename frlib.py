@@ -34,13 +34,13 @@ class Data:
         and perform modifications of this data in case it is necessary.
     """
 
-    def __init__(self, n=1E5, eta0=0, delta=1.0, t0=0.0, tfinal=50.0,
+    def __init__(self, n=1E5, j0=0.0, eta0=0, delta=1.0, t0=0.0, tfinal=50.0,
                  dt=1E-3, delay=0.0, tau=1.0, taud=100, u=0.05, faketau=20.0E-3, fp='lorentz', system='fr'):
 
         # 0.1) Network properties:
         # Zeroth mode, determines firing rate of the homogeneous state
         self.filepath = './init_conds/qif/'
-        self.j0 = 0.0  # default value
+        self.j0 = j0  # default value
 
         # 0.3) Give the model parameters
         self.eta0 = eta0  # Constant external current mean value
@@ -74,11 +74,11 @@ class Data:
         self.systems = []
         if system == 'qif' or system == 'both':
             self.systems.append('qif')
-        if system == 'nf' or system == 'both':
-            self.systems.append('nf')
+        if system == 'fr' or system == 'both':
+            self.systems.append('fr')
 
         # 0.8) QIF model parameters
-        if system != 'nf':
+        if system != 'fr':
             print "Loading QIF parameters:"
             print "***********************"
             self.fp = fp
@@ -177,14 +177,14 @@ class Data:
         self.k = {x: None for x in self.systems}
         self.dr = {x: None for x in self.systems}
 
-    def load_ic(self, j0, system='nf'):
+    def load_ic(self, j0, system='fr'):
         """ Loads initial conditions based on the parameters. It will try to load system that
             most closely resembles. The available systems are stored in a file.
         """
         # File path variables
         # TODO compute the fixed point taking into account the parameter space: HS or Bump?
 
-        if system == 'nf' or system == 'both':
+        if system == 'fr' or system == 'both':
             self.fileprm = '%.2lf-%.2lf-%.2lf' % (j0, self.eta0, self.delta)
             self.r[(self.nsteps - 1) % self.nsteps] = self.r0
             self.v[(self.nsteps - 1) % self.nsteps] = -self.delta / (2.0 * self.r0 * np.pi)
@@ -284,12 +284,12 @@ class Data:
             self.k['qif'] = None
             self.dr['qif'] = dict(all=fr.frqif0, inst=fr.rqif)
 
-        if self.system == 'nf' or self.system == 'both':
-            self.rstored['nf'] = self.r
-            self.vstored['nf'] = self.v
-            self.t['nf'] = self.tpoints
-            self.k['nf'] = None
-            self.dr['nf'] = th.thdist
+        if self.system == 'fr' or self.system == 'both':
+            self.rstored['fr'] = self.r
+            self.vstored['fr'] = self.v
+            self.t['fr'] = self.tpoints
+            self.k['fr'] = None
+            self.dr['fr'] = th.thdist
 
     @staticmethod
     def find_nearest(array, value):

@@ -82,9 +82,7 @@ class Data:
             print "Loading QIF parameters:"
             print "***********************"
             self.fp = fp
-            # sub-populations
             self.N = n
-
             self.vpeak = 100.0  # Value of peak voltage (max voltage)
             # self.vreset = -self.vpeak  # Value of resetting voltage (min voltage)
             self.vreset = -100.0
@@ -93,7 +91,7 @@ class Data:
             self.tau_peak = tau / self.vpeak  # Refractory time till the spike is generated
             # --------------
             self.T_syn = 10  # Number of steps for computing synaptic activation
-            self.tau_syn = self.T_syn * dt  # time scale (??)
+            self.tau_syn = self.T_syn * dt / 1.00  # time scale (??)
             # Weighting matrix (synaptic delay, in some sense).
             # We need T_syn vectors in order to improve the performance.
             if self.T_syn <= 20:
@@ -137,11 +135,10 @@ class Data:
             self.spikes = np.ones(shape=(self.N, self.T_syn)) * 0  # Spike matrix (N x T_syn)
 
             # Synaptic variable d
-            self.dqif = np.ones(self.nsteps)
-            if system != 'qif':
-                self.dqif[len(self.dqif) - 1] = self.d[len(self.d) - 1]
-            else:
-                self.dqif[len(self.dqif) - 1] = 0.0
+            self.dqif = np.ones((2, self.N)) * 0.0
+
+            # Firing rate of individual neurons
+            self.ri = np.ones((2, self.N)) * 0.0
 
             # Single neuron recording (not implemented)
             self.singlev = np.ones(self.nsteps) * 0.0
@@ -562,6 +559,7 @@ class FiringRate:
         self.vavg0 = 0.0 * np.ones(data.N)
         self.frqif0 = []  # Firing rate of individual qif neurons
         self.frqif = None
+        self.dqif = []
 
         # Total spikes of the network:
         self.tspikes = 0 * np.ones(data.N)
@@ -601,6 +599,7 @@ class FiringRate:
             self.tempsfr.append(self.temps - self.swindow / 2.0)
             self.tempsfr2.append(self.temps)
 
+
             # Single neurons firing rate in a given time (averaging over a time window)
             self.rqif.append(self.tspikes2)
             self.rqif[-1] /= (self.ravg2 * self.d.dt * self.d.faketau)
@@ -612,9 +611,9 @@ class FiringRate:
             self.ravg2 = 0
 
             # Average of the voltages over a time window and over the populations
-            self.v.append((1.0 / self.d.N / self.vavg) * np.add.reduce(self.vavg0))
-            self.vavg = 0
-            self.vavg0 = 0.0 * np.ones(self.d.N)
+            # self.v.append((1.0 / self.d.N / self.vavg) * np.add.reduce(self.vavg0))
+            # self.vavg = 0
+            # self.vavg0 = 0.0 * np.ones(self.d.N)
 
     def singlefiringrate(self, tstep):
         """ Computes the firing rate of individual neurons.

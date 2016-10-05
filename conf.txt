@@ -59,7 +59,7 @@ Network:
     choices:     ~
   -N --popsize:
     description: "Number of neurons for the qif system."
-    default:     500000
+    default:     5000
     name:        "<N>"
     choices:     ~
   -D --distribution:
@@ -90,7 +90,7 @@ Simulation:
     choices:     [0 ,1]
   -s --system:
     description: "Systems to be simulated."
-    default:     'both'
+    default:     'fr'
     name:        "<system>"
     choices:     ['qif', 'fr', 'both']
   -T --ttime:

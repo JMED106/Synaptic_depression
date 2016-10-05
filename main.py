@@ -66,9 +66,6 @@ d = Data(n=args.N, eta0=args.e, delta=args.d, tfinal=args.T, dt=float(args.dt), 
 # 0.2) Load initial conditions
 if args.oic is False:
     d.load_ic(args.j, system=d.system)
-else:
-    d.fileprm = '%s_%.2lf-%.2lf-%.2lf' % (d.fp, d.j0, d.eta0, d.delta)
-
 
 if args.ic:
     print "Forcing initial conditions generation..."
@@ -81,7 +78,7 @@ if d.new_ic:
 
 # 0.3) Load Firing rate class in case qif network is simulated
 if d.system != 'fr':
-    fr = FiringRate(data=d, swindow=0.1, sampling=0.05)
+    fr = FiringRate(data=d, swindow=0.05, sampling=0.1)
 
 # 0.4) Set perturbation configuration
 p = Perturbation(data=d, dt=args.pt, amplitude=args.a, attack=args.A)
@@ -103,6 +100,8 @@ pbar = pb.ProgressBar(widgets=widgets, maxval=10 * (d.nsteps + 1)).start()
 time1 = timer()
 tstep = 0
 temps = 0
+sarray = []
+sqifarray = []
 
 # Time loop
 while temps < d.tfinal:
@@ -121,19 +120,27 @@ while temps < d.tfinal:
         tsyp = tstep % d.T_syn
         tskp = tstep % d.spiketime
         tsk = (tstep + d.spiketime - 1) % d.spiketime
-        # We compute the Mean-field vector s_j
-        # noinspection PyUnresolvedReferences
-        s = (1.0 / d.N) * np.add.reduce(np.dot(d.spikes, d.a_tau[:, tsyp]))
-        d.dqif[kp] = d.dqif[k] + d.dt * ((1.0 - d.dqif[k]) / d.taud - d.u * s * d.dqif[k])
+        dn = k % 2
+        dn1 = kp % 2
 
+        # 1st Step: Compute the synaptic depression due to the firing in the presynaptic neuron (
+        d.dqif[dn1] = d.dqif[dn] + d.dt * ((1.0 - d.dqif[dn]) / d.taud - d.u * d.ri[dn] * d.dqif[dn])
+        # noinspection PyUnresolvedReferences
+        fr.dqif.append(1.0/d.N * np.add.reduce(d.dqif[dn1]))
+        # 2nd Step: Compute firing rate of each  presynaptic neuron:
+        d.ri[dn1] = np.dot(d.spikes, d.a_tau[:, tsyp])
+        # 3rd Step: Compute the effective firing rate towards each postsynaptic neuron (mean-field)
+        # noinspection PyUnresolvedReferences
+        s = (1.0 / d.N) * np.add.reduce(d.ri[dn1] * d.dqif[dn1])
+        sqifarray.append(s)
         if d.fp == 'noise':
             noiseinput = np.sqrt(2.0 * d.dt / d.tau * d.delta) * noise(d.N)
             # Excitatory
-            d.matrix = qifint_noise(d.matrix, d.matrix[:, 0], d.matrix[:, 1], d.eta0, d.j0 * d.dqif[kp] * s + p.input,
+            d.matrix = qifint_noise(d.matrix, d.matrix[:, 0], d.matrix[:, 1], d.eta0, d.j0 * s + p.input,
                                     noiseinput, temps, d.N, d.dt, d.tau, d.vpeak, d.refr_tau, d.tau_peak)
         else:
             # Excitatory
-            d.matrix = qifint(d.matrix, d.matrix[:, 0], d.matrix[:, 1], d.eta, d.j0 * d.dqif[kp] * s + p.input, temps,
+            d.matrix = qifint(d.matrix, d.matrix[:, 0], d.matrix[:, 1], d.eta, d.j0 * s + p.input, temps,
                               d.N, d.dt, d.tau, d.vpeak, d.refr_tau, d.tau_peak)
 
         # Prepare spike matrices for Mean-Field computation and firing rate measure
@@ -145,9 +152,9 @@ while temps < d.tfinal:
         # compute the firing rate.
         if not d.new_ic:
             # Voltage measure:
-            vma = (d.matrix[:, 1] <= temps)  # Neurons which are not in the refractory period
-            fr.vavg0[vma] += d.matrix[vma, 0]
-            fr.vavg += 1
+            # vma = (d.matrix[:, 1] <= temps)  # Neurons which are not in the refractory period
+            # fr.vavg0[vma] += d.matrix[vma, 0]
+            # fr.vavg += 1
 
             # ######################## -- FIRING RATE MEASURE -- ##
             fr.frspikes[:, tstep % fr.wsteps] = 1 * d.spikes[:, tsyp]
@@ -209,9 +216,13 @@ sr.save()
 # Preliminar plotting with gnuplot
 gp = Gnuplot.Gnuplot(persist=1)
 p1 = Gnuplot.PlotItems.Data(np.c_[d.tpoints * d.faketau, d.r / d.faketau], with_='lines')
+p4 = Gnuplot.PlotItems.Data(np.c_[d.tpoints * d.faketau, d.d / d.faketau], with_='lines')
 if opts.s != 'fr':
     p2 = Gnuplot.PlotItems.Data(np.c_[np.array(fr.tempsfr) * d.faketau, np.array(fr.r) / d.faketau],
                                 with_='lines')
+    p3 = Gnuplot.PlotItems.Data(np.c_[np.array(d.tpoints) * d.faketau, np.array(fr.dqif) / d.faketau],
+                                with_='lines')
 else:
     p2 = Gnuplot.PlotItems.Data(np.c_[d.tpoints * d.faketau, d.d / d.faketau], with_='lines')
-gp.plot(p1, p2)
+    p3 = None
+gp.plot(p3, p4)

@@ -1,6 +1,8 @@
+#!/usr/bin/python2.7
 import argparse
 import yaml
 import sys
+import logging
 from timeit import default_timer as timer
 import progressbar as pb
 import Gnuplot
@@ -78,7 +80,7 @@ if d.new_ic:
 
 # 0.3) Load Firing rate class in case qif network is simulated
 if d.system != 'fr':
-    fr = FiringRate(data=d, swindow=0.05, sampling=0.1)
+    fr = FiringRate(data=d, swindow=0.1, sampling=0.05)
 
 # 0.4) Set perturbation configuration
 p = Perturbation(data=d, dt=args.pt, amplitude=args.a, attack=args.A)
@@ -139,47 +141,31 @@ while temps < d.tfinal:
         # Index for depression variable
         dn1 = k % 2  # Previous
         dn2 = kp % 2  # Now
-
         # 1st Step: Compute the synaptic depression due to the firing in the presynaptic neuron
         #    Mask for the PREsynaptic firing neurons
         mask = (d.spikes[:, t_spike_previous] == 1)
-        # We throw random numbers from uniform distribution for those who have spikes
-        rnd_ma = np.random.random(len(d.dqif[dn1, mask]))
-        # Mask for those who suffer a reduction
-        ma_u = (d.dqif[dn1, mask] >= rnd_ma)
-        # For all of them
-        d.dqif[dn2] = d.dqif[dn1] + d.dt * ((1.0 - d.dqif[dn1]) / d.taud)
-        # For the masked ones
-        d.dqif[dn2, mask] = d.dqif[dn2, mask] - d.u * ma_u
+
+        # 1st Step: Compute the adaptation due to the firing in the postsynaptic neuron
+        d.dqif[dn2] = d.dqif[dn1] + d.dt * (-1.0*d.dqif[dn1] / d.taud) + 1.0 / d.taud * mask
         # noinspection PyUnresolvedReferences
         fr.dqif.append(1.0 / d.N * np.add.reduce(d.dqif[dn2]))
 
         # 2nd Step: Compute the effective firing rate towards each postsynaptic neuron (mean-field)
-        # We throw random numbers from a uniform distribution for those who produce spikes
-        rnd_ma = np.random.random(len(rnd_ma))
-        # Mask for those who contribute
-        ma_fire = (d.dqif[dn2, mask] >= rnd_ma)
         # Compute the mean-field
         # noinspection PyUnresolvedReferences
-        s = (d.tau / d.N / d.dt) * np.add.reduce(1.0 * ma_fire)
-        # noinspection PyUnresolvedReferences
-        s2 = (1.0 / d.N / d.dt) * np.add.reduce(d.spikes[:, t_spike_previous]) * (1.0 / d.N) * np.add.reduce(d.dqif[dn2])
-        sqifarray.append(s-s2)
+        s = (d.tau / d.N / d.dt) * np.add.reduce(1.0 * d.spikes[:, t_spike_previous])
 
-        # sqifarray.append((s, s2))
         # 3rd Step: Compute membrane potentials
         if d.fp == 'noise':
             noiseinput = np.sqrt(2.0 * d.dt / d.tau * d.delta) * noise(d.N)
-            # Excitatory
             d.matrix = qifint_noise(d.matrix, d.matrix[:, 0], d.matrix[:, 1], d.eta0, d.j0 * s + p.input,
                                     noiseinput, temps, d.N, d.dt, d.tau, d.vpeak, d.refr_tau, d.tau_peak)
         else:
-            # Excitatory
-            d.matrix = qifint(d.matrix, d.matrix[:, 0], d.matrix[:, 1], d.eta, d.j0 * s + p.input, temps,
+            d.matrix = qifint(d.matrix, d.matrix[:, 0], d.matrix[:, 1], d.eta - d.j0 * d.dqif[dn2] * d.u,
+                              d.j0 * s + p.input, temps,
                               d.N, d.dt, d.tau, d.vpeak, d.refr_tau, d.tau_peak)
 
         # Prepare spike matrices for Mean-Field computation and firing rate measure
-        # Excitatory
         d.spikes[:, t_refr] = 1 * d.matrix[:, 2]  # We store the spikes
 
         # If we are just obtaining the initial conditions (a steady state) we don't need to
@@ -203,9 +189,11 @@ while temps < d.tfinal:
     # ######################## --   FR EQS.   -- ##
     if d.system == 'fr' or d.system == 'both':
         # -- Integration -- #
-        d.d[kp] = d.d[k] + d.dt * ((1.0 - d.d[k]) / d.taud - d.u * d.r[k] * d.d[k])
+        d.d[kp] = d.d[k] + d.dt * (- d.d[k] / d.taud + d.r[k] / d.taud)
         d.r[kp] = d.r[k] + d.dt * (d.delta / pi + 2.0 * d.r[k] * d.v[k])
-        d.v[kp] = d.v[k] + d.dt * (d.v[k] * d.v[k] + d.eta0 - pi2 * d.r[k] * d.r[k] + d.j0 * d.r[k] * d.d[kp] + p.input)
+        d.v[kp] = d.v[k] + d.dt * (
+            d.v[k] * d.v[k] + d.eta0 - d.j0 * d.u * d.d[kp] - pi2 * d.r[k] * d.r[k] + d.j0 * d.r[k] + p.input)
+
     # Perturbation at certain time
     if int(p.t0 / d.dt) == tstep:
         p.pbool = True
@@ -219,12 +207,10 @@ while temps < d.tfinal:
 pbar.finish()
 # Stop the timer
 print 'Total time: {}.'.format(timer() - time1)
-print np.array(sqifarray).mean(), max(sqifarray), min(sqifarray)
 # Compute distribution of firing rates of neurons
 tstep -= 1
 temps -= d.dt
 th.thdist = th.theor_distrb(d.d[tstep % d.nsteps], 1)
-
 
 # Save initial conditions
 if d.new_ic:
@@ -246,14 +232,15 @@ else:
 # Save results
 sr.create_dict()
 sr.results['perturbation']['It'] = p.it
+if 'qif' in d.systems:
+    sr.results['qif']['voltages'] = d.matrix[:, 0]
+    sr.results['qif']['a'] = d.dqif[0]
 sr.save()
 
 # Preliminar plotting with gnuplot
 gp = Gnuplot.Gnuplot(persist=1)
 p1 = Gnuplot.PlotItems.Data(np.c_[d.tpoints * d.faketau, d.r / d.faketau], with_='lines')
 p4 = Gnuplot.PlotItems.Data(np.c_[d.tpoints * d.faketau, d.d / d.faketau], with_='lines')
-
-print len(d.tpoints), len(fr.dqif)
 
 if opts.s != 'fr':
     p2 = Gnuplot.PlotItems.Data(np.c_[np.array(fr.tempsfr) * d.faketau, np.array(fr.r) / d.faketau],
@@ -263,7 +250,7 @@ if opts.s != 'fr':
 else:
     p2 = Gnuplot.PlotItems.Data(np.c_[d.tpoints * d.faketau, d.d / d.faketau], with_='lines')
     p3 = None
-gp.plot(p3, p4, p2, p1)
+gp.plot(p2, p1)
 # gp2 = Gnuplot.Gnuplot(persist=2)
 # p5 = Gnuplot.PlotItems.Data(np.c_[d.tpoints, np.array(sqifarray)], with_='lines')
 # gp2.plot(p5)

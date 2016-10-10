@@ -70,6 +70,11 @@ class Data:
         self.r0 = Connectivity.rtheory(self.j0, self.eta0, self.delta)
         self.d[len(self.d) - 1] = 0.0
 
+        # Weighting vector
+        self.atau = np.ones(self.nsteps) * 0.0
+
+
+
         self.system = system
         self.systems = []
         if system == 'qif' or system == 'both':
@@ -90,7 +95,7 @@ class Data:
             self.refr_tau = tau / self.vpeak - tau / self.vreset  # Refractory time in which the neuron is not excitable
             self.tau_peak = tau / self.vpeak  # Refractory time till the spike is generated
 
-            # Distributions of the external current       -- FOR l populations --
+            # Distributions of the external current
             self.eta = None
             if fp == 'lorentz' or fp == 'gauss':
                 print "+ Setting distribution of external currents: "

@@ -43,7 +43,7 @@ QIF:
     choices:     ~
   -td --taud:
     description: "Synaptic time constant (a.u.)."
-    default:     100.0
+    default:     10.0
     name:        "<taud>"
     choices:     ~
   -ti --taui:
@@ -53,7 +53,7 @@ QIF:
     choices:     ~
   -U --fast:
     description: "Synaptic fast time constant (a.u.)."
-    default:     0.05
+    default:     0.1
     name:        "<fast>"
     choices:     ~
 Network:

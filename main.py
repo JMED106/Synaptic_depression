@@ -165,6 +165,7 @@ while temps < d.tfinal:
         # noinspection PyUnresolvedReferences
         s2 = (1.0 / d.N / d.dt) * np.add.reduce(d.spikes[:, t_spike_previous]) * (1.0 / d.N) * np.add.reduce(d.dqif[dn2])
         sqifarray.append(s-s2)
+
         # sqifarray.append((s, s2))
         # 3rd Step: Compute membrane potentials
         if d.fp == 'noise':

@@ -46,6 +46,11 @@ QIF:
     default:     100.0
     name:        "<taud>"
     choices:     ~
+  -ti --taui:
+    description: "Synaptic time constant (a.u.)."
+    default:     10.0
+    name:        "<tauin>"
+    choices:     ~
   -U --fast:
     description: "Synaptic fast time constant (a.u.)."
     default:     0.05
@@ -59,7 +64,7 @@ Network:
     choices:     ~
   -N --popsize:
     description: "Number of neurons for the qif system."
-    default:     5000
+    default:     1000
     name:        "<N>"
     choices:     ~
   -D --distribution:
@@ -80,17 +85,17 @@ Simulation:
     choices:     ~
   -ic --initconds:
     description: "Override initial conditions generator."
-    default:     0
+    default:     False
     name:        "<initconds>"
-    choices:     [0 ,1]
+    choices:     [False ,True]
   -oic --overrideic:
     description: "Override initial conditions generator."
-    default:     0
+    default:     False
     name:        "<overinitconds>"
-    choices:     [0 ,1]
+    choices:     [True ,False]
   -s --system:
     description: "Systems to be simulated."
-    default:     'fr'
+    default:     'both'
     name:        "<system>"
     choices:     ['qif', 'fr', 'both']
   -T --ttime:

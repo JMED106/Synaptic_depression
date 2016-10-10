@@ -64,7 +64,7 @@ class Data:
         # 0.7) FIRING RATE EQUATIONS
         self.r = np.ones(self.nsteps)
         self.v = np.ones(self.nsteps) * (-0.01)
-        self.d = np.ones(self.nsteps)
+        self.d = np.ones(self.nsteps) * 0.0
         self.r[len(self.r) - 1] = 0.0
         # Load INITIAL CONDITIONS
         self.r0 = Connectivity.rtheory(self.j0, self.eta0, self.delta)
@@ -89,23 +89,6 @@ class Data:
             # --------------
             self.refr_tau = tau / self.vpeak - tau / self.vreset  # Refractory time in which the neuron is not excitable
             self.tau_peak = tau / self.vpeak  # Refractory time till the spike is generated
-            # --------------
-            self.T_syn = 10  # Number of steps for computing synaptic activation
-            self.tau_syn = self.T_syn * dt / 1.00  # time scale (??)
-            # Weighting matrix (synaptic delay, in some sense).
-            # We need T_syn vectors in order to improve the performance.
-            if self.T_syn <= 20:
-                # Heaviside
-                h_tau = 1.0 / self.tau_syn
-                a_tau0 = np.transpose(h_tau * np.ones(self.T_syn))
-            else:
-                # Exponential (disabled by the Heaviside)
-                # self.tau_syn /= 4
-                a_tau0 = np.transpose((1.0 / self.tau_syn) * np.exp(-dt * np.arange(self.T_syn) / self.tau_syn))
-
-            self.a_tau = np.zeros((self.T_syn, self.T_syn))  # Multiple weighting vectors (index shifted)
-            for i in xrange(self.T_syn):
-                self.a_tau[i] = np.roll(a_tau0, i, 0)
 
             # Distributions of the external current       -- FOR l populations --
             self.eta = None
@@ -132,7 +115,6 @@ class Data:
 
             # QIF neurons matrices (declaration)
             self.matrix = np.ones(shape=(self.N, 3)) * 0
-            self.spikes = np.ones(shape=(self.N, self.T_syn)) * 0  # Spike matrix (N x T_syn)
 
             # Synaptic variable d
             self.dqif = np.ones((2, self.N)) * 0.0
@@ -151,8 +133,7 @@ class Data:
             # 0.8.1) QIF vectors and matrices (initial conditions are loaded after
             #                                  connectivity  matrix is created)
             self.spiketime = int(self.tau_peak / dt)
-            self.s1time = self.T_syn + self.spiketime
-            self.spikes_mod = np.ones(shape=(self.N, self.spiketime)) * 0  # Spike matrix (Ne x (T_syn + tpeak/dt))
+            self.spikes = np.ones(shape=(self.N, self.spiketime)) * 0  # Spike matrix (Ne x tpeak/dt)
 
         # 0.9) Perturbation parameters
         self.PERT = False

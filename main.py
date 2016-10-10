@@ -106,8 +106,9 @@ sqifarray = []
 # Time loop
 while temps < d.tfinal:
     # Time step variables
-    kp = tstep % d.nsteps
-    k = (tstep + d.nsteps - 1) % d.nsteps
+    k = (tstep + d.nsteps - 1) % d.nsteps  # Previous
+    kp = tstep % d.nsteps  # Now
+
     # ######################## - PERTURBATION  - ##
     if p.pbool and not d.new_ic:
         if temps >= p.t0:
@@ -117,22 +118,55 @@ while temps < d.tfinal:
     # ######################## -  INTEGRATION  - ##
     # ######################## -      qif      - ##
     if d.system == 'qif' or d.system == 'both':
-        tsyp = tstep % d.T_syn
-        tskp = tstep % d.spiketime
-        tsk = (tstep + d.spiketime - 1) % d.spiketime
-        dn = k % 2
-        dn1 = kp % 2
+        # Index in which spikes are happening (in the spikes matrix)
+        t_spike = tstep % d.spiketime
+        t_spike_previous = (tstep + d.spiketime - 1) % d.spiketime
+        # Index in which the spikes will happen (after a refractory period)
+        t_refr = (tstep + d.spiketime - 1) % d.spiketime
+        ''' For a 10 step refractory period (spike or 0, 1, 2, 3, refr or 4)
+          [     0,     0,     0,     0,     0]
+          ------------------------------------
+          [     3,  refr, spike,     1,     2]  refr=0;  spike=0
+          [     -,     -,  refr, spike,     -]  refr=0;  spike=0
+          ------------------------------------
+          [     0,     0,     0,     1,     0]  SPIKE
+          [     -,     -,     -,  refr, spike]  refr=1;  spike=0
+          [ spike,     -,     -,     -,  refr]  refr=0;  spike=0
+          [  refr, spike,     -,     -,     -]  refr=0;  spike=0
+          [     -,  refr, spike,     -,     -]  refr=0;  spike=0
+          [     -,     -,  refr, spike,     -]  refr=0;  spike=1 '''
 
-        # 1st Step: Compute the synaptic depression due to the firing in the presynaptic neuron (
-        d.dqif[dn1] = d.dqif[dn] + d.dt * ((1.0 - d.dqif[dn]) / d.taud - d.u * d.ri[dn] * d.dqif[dn])
+        # Index for depression variable
+        dn1 = k % 2  # Previous
+        dn2 = kp % 2  # Now
+
+        # 1st Step: Compute the synaptic depression due to the firing in the presynaptic neuron
+        #    Mask for the PREsynaptic firing neurons
+        mask = (d.spikes[:, t_spike_previous] == 1)
+        # We throw random numbers from uniform distribution for those who have spikes
+        rnd_ma = np.random.random(len(d.dqif[dn1, mask]))
+        # Mask for those who suffer a reduction
+        ma_u = (d.dqif[dn1, mask] >= rnd_ma)
+        # For all of them
+        d.dqif[dn2] = d.dqif[dn1] + d.dt * ((1.0 - d.dqif[dn1]) / d.taud)
+        # For the masked ones
+        d.dqif[dn2, mask] = d.dqif[dn2, mask] - d.u * ma_u
         # noinspection PyUnresolvedReferences
-        fr.dqif.append(1.0/d.N * np.add.reduce(d.dqif[dn1]))
-        # 2nd Step: Compute firing rate of each  presynaptic neuron:
-        d.ri[dn1] = np.dot(d.spikes, d.a_tau[:, tsyp])
-        # 3rd Step: Compute the effective firing rate towards each postsynaptic neuron (mean-field)
+        fr.dqif.append(1.0 / d.N * np.add.reduce(d.dqif[dn2]))
+
+        # 2nd Step: Compute the effective firing rate towards each postsynaptic neuron (mean-field)
+        # We throw random numbers from a uniform distribution for those who produce spikes
+        rnd_ma = np.random.random(len(rnd_ma))
+        # Mask for those who contribute
+        ma_fire = (d.dqif[dn2, mask] >= rnd_ma)
+        # Compute the mean-field
         # noinspection PyUnresolvedReferences
-        s = (1.0 / d.N) * np.add.reduce(d.ri[dn1] * d.dqif[dn1])
-        sqifarray.append(s)
+        s = (d.tau / d.N / d.dt) * np.add.reduce(1.0 * ma_fire)
+        # noinspection PyUnresolvedReferences
+        s2 = (1.0 / d.N / d.dt) * np.add.reduce(d.spikes[:, t_spike_previous]) * (1.0 / d.N) * np.add.reduce(d.dqif[dn2])
+        sqifarray.append(s-s2)
+        # sqifarray.append((s, s2))
+        # 3rd Step: Compute membrane potentials
         if d.fp == 'noise':
             noiseinput = np.sqrt(2.0 * d.dt / d.tau * d.delta) * noise(d.N)
             # Excitatory
@@ -145,8 +179,7 @@ while temps < d.tfinal:
 
         # Prepare spike matrices for Mean-Field computation and firing rate measure
         # Excitatory
-        d.spikes_mod[:, tsk] = 1 * d.matrix[:, 2]  # We store the spikes
-        d.spikes[:, tsyp] = 1 * d.spikes_mod[:, tskp]
+        d.spikes[:, t_refr] = 1 * d.matrix[:, 2]  # We store the spikes
 
         # If we are just obtaining the initial conditions (a steady state) we don't need to
         # compute the firing rate.
@@ -157,7 +190,7 @@ while temps < d.tfinal:
             # fr.vavg += 1
 
             # ######################## -- FIRING RATE MEASURE -- ##
-            fr.frspikes[:, tstep % fr.wsteps] = 1 * d.spikes[:, tsyp]
+            fr.frspikes[:, tstep % fr.wsteps] = 1 * d.spikes[:, t_spike]
             fr.firingrate(tstep)
             # Distribution of Firing Rates
             if tstep > 0:
@@ -185,11 +218,12 @@ while temps < d.tfinal:
 pbar.finish()
 # Stop the timer
 print 'Total time: {}.'.format(timer() - time1)
-
+print np.array(sqifarray).mean(), max(sqifarray), min(sqifarray)
 # Compute distribution of firing rates of neurons
 tstep -= 1
 temps -= d.dt
 th.thdist = th.theor_distrb(d.d[tstep % d.nsteps], 1)
+
 
 # Save initial conditions
 if d.new_ic:
@@ -217,12 +251,18 @@ sr.save()
 gp = Gnuplot.Gnuplot(persist=1)
 p1 = Gnuplot.PlotItems.Data(np.c_[d.tpoints * d.faketau, d.r / d.faketau], with_='lines')
 p4 = Gnuplot.PlotItems.Data(np.c_[d.tpoints * d.faketau, d.d / d.faketau], with_='lines')
+
+print len(d.tpoints), len(fr.dqif)
+
 if opts.s != 'fr':
     p2 = Gnuplot.PlotItems.Data(np.c_[np.array(fr.tempsfr) * d.faketau, np.array(fr.r) / d.faketau],
                                 with_='lines')
-    p3 = Gnuplot.PlotItems.Data(np.c_[np.array(d.tpoints) * d.faketau, np.array(fr.dqif) / d.faketau],
+    p3 = Gnuplot.PlotItems.Data(np.c_[np.array(d.tpoints) * d.faketau, np.array(fr.dqif[0:len(d.tpoints)]) / d.faketau],
                                 with_='lines')
 else:
     p2 = Gnuplot.PlotItems.Data(np.c_[d.tpoints * d.faketau, d.d / d.faketau], with_='lines')
     p3 = None
-gp.plot(p3, p4)
+gp.plot(p3, p4, p2, p1)
+# gp2 = Gnuplot.Gnuplot(persist=2)
+# p5 = Gnuplot.PlotItems.Data(np.c_[d.tpoints, np.array(sqifarray)], with_='lines')
+# gp2.plot(p5)

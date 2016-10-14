@@ -2,7 +2,6 @@
 import argparse
 import yaml
 import sys
-import logging
 from timeit import default_timer as timer
 import progressbar as pb
 import Gnuplot
@@ -145,12 +144,13 @@ while temps < d.tfinal:
         #    Mask for the PREsynaptic firing neurons
         mask = (d.spikes[:, t_spike_previous] == 1)
         # noinspection PyUnresolvedReferences
-        # d.dqif[dn2] = d.dqif[dn1] + d.dt * (-1.0 * d.dqif[dn1] / d.taud + 1.0 / d.taud * np.add.reduce(d.spikes, axis=1))
-
+        # d.dqif[dn2] = d.dqif[dn1] + d.dt * (
+        #     -1.0 * d.dqif[dn1] / d.taud + 1.0 / d.taud * np.add.reduce(d.spikes, axis=1))
 
         # 1st Step: Compute the adaptation due to the firing in the postsynaptic neuron
-        # d.dqif[dn2] = (1 - d.spikes[:, t_spike_previous]) * (d.dqif[dn1] + d.dt * (-1.0*d.dqif[dn1] / d.taud)) + 1.0 / d.taud * mask
-        d.dqif[dn2] = d.dqif[dn1] + d.dt * (-1.0*d.dqif[dn1] / d.taud) + 1.0 / d.taud * mask
+        d.dqif[dn2] = (1 - d.spikes[:, t_spike_previous]) * (
+            d.dqif[dn1] + d.dt * (-1.0 * d.dqif[dn1] / d.taud)) + 1.0 / d.taud * mask
+        # d.dqif[dn2] = d.dqif[dn1] + d.dt * (-1.0*d.dqif[dn1] / d.taud) + 1.0 / d.taud * mask
         # noinspection PyUnresolvedReferences
         fr.dqif.append(1.0 / d.N * np.add.reduce(d.dqif[dn2]))
 
